@@ -26,31 +26,14 @@ def get_cpu_threads():
 
 # Detects the proper affinity mask value for CPU in order to disable HT for the process
 def detect_target_affinity(cpu_threads):
-    if cpu_threads == 2:
-        ta = 2
-    elif cpu_threads == 4:
-        ta = 10
-    elif cpu_threads == 6:
-        ta = 42
-    elif cpu_threads == 8:
-        ta = 170
-    elif cpu_threads == 12:
-        ta = 2730
-    elif cpu_threads == 16:
-        ta = 43690
-    elif cpu_threads == 20:
-        ta = 699050
-    elif cpu_threads == 24:
-        ta = 11184810
-    elif cpu_threads == 32:
-        ta = 2863311530
-    elif cpu_threads == 48:
-        ta = 187649984473770
+    affinity_dict = {2: 2, 4: 10, 6: 42, 8: 170, 12: 2730, 16: 43690, 20: 699050, 24: 11184810, 32: 2863311530,
+                     48: 187649984473770}
+
+    if cpu_threads in affinity_dict.keys():
+        return affinity_dict[cpu_threads]
     else:
         print("Unsupported amount of CPU threads. Unable to optimize. Closing the script.")
         exit()
-
-    return ta
 
 
 # Returns PID of process by provided process name. Also sets priority of process to "High Priority".
@@ -95,7 +78,7 @@ if __name__ == "__main__":
     sleep(1)
     startfile(filepath)
     print("Trying to start the game via Ubisoft Launcher")
-    sleep(2)
+    sleep(3)
 
     while pid_status == False:
         try:
