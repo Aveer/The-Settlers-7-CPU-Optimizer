@@ -13,7 +13,7 @@ pName = "Settlers7R.exe"  # name of the process
 def get_cpu_threads():
     ct = cpu_count()
     rc = psutil.cpu_count(logical=False)
-    print("Number of physical cores: ", rc )
+    print("Number of physical cores: ", rc)
     print("Number of threads: ", ct)
 
     if ct/rc == 2:
@@ -51,7 +51,9 @@ def get_pid(pName):
             ps = True
             return pid, ps
 
-    print("The Settlers 7 not launched. Please launch it manually if the script was not able to launch it automatically via Ubisoft Launcher")
+    print("The Settlers 7 not launched. Please launch it manually if the script was not able to launch it "
+          "automatically via Ubisoft Launcher")
+
     return pid, ps
 
 
