@@ -4,15 +4,14 @@
 
 Settlers 7 does not "like" HT technology. This script changes the affinity of the process to disable HT threads for the running process of the Settlers 7. It interacts only with the game.
 
-Instruction:
+**Instruction:**
 Just open the exe file and wait for it to do it's magic.
 Alternatively you can download the source code and run the main.py file with Python.
 
-Warning!
+**Warning!**
 The exe file was detected on my PC as a Trojan virus. This is however a false positive.
 
-Script opens a CMD and:
-
+**Script opens a CMD and:**
 1. Launches the game from Ubisoft launcher (can be launched manualy from other sources too).
 2. Disables HT for the Settlers 7 process.
 3. Sets the priority of Settlers 7 process to High.
@@ -20,11 +19,12 @@ Script opens a CMD and:
 5. Automatically closes once optimization is done.
 
 
-Effect:
 
+**Effect:**
 7-30 FPS boost without any compromises (depends on the hardware and situation in game)
 
-Supported CPUs with: 2, 4, 6, 8, 12, 16, 20, 24, 32, 48 threads. Works only for CPUs with HT technology
+
+Supports CPUs with: 2, 4, 6, 8, 12, 16, 20, 24, 32, 48 threads. Works only for CPUs with HT technology
 
 
 
