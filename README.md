@@ -3,6 +3,7 @@
 
 Instruction:
 Just open the exe file and wait for it to do it's magic.
+Alternatively you can download the source code and run the main.py file with Python.
 
 Warning!
 The exe file was detected on my PC as a Trojan virus. This is however a false positive.
