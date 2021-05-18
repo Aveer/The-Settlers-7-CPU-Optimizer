@@ -1,6 +1,9 @@
 # The-Settlers-7-CPU-Optimizer
 1.02 of The Settlers 7 CPU Optimizer
 
+
+Settlers 7 does not "like" HT technology. This script changes the affinity of the process to disable HT threads for the running process of the Settlers 7. It interacts only with the game.
+
 Instruction:
 Just open the exe file and wait for it to do it's magic.
 Alternatively you can download the source code and run the main.py file with Python.
