@@ -24,7 +24,7 @@ The exe file was detected on my PC as a Trojan virus. This is however a false po
 7-30 FPS boost without any compromises (depends on the hardware and situation in game)
 
 
-Supports CPUs with: 2, 4, 6, 8, 12, 16, 20, 24, 32, 48 threads. Works only for CPUs with HT technology
+**Supports CPUs with**: 2, 4, 6, 8, 12, 16, 20, 24, 32, 48 threads. Works only for CPUs with HT technology
 
 
 
