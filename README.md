@@ -26,7 +26,9 @@ The exe file was detected on my PC as a Trojan virus. This is however a false po
 
 **Supports CPUs with**: 2, 4, 6, 8, 12, 16, 20, 24, 32, 48 threads. Works only for CPUs with HT technology
 
+*******************************
 
+**Screenshots:**
 
 The below Screenshots were taken with all settings maxed out, 4k on I7 7700K and GTX1080Ti.
 
