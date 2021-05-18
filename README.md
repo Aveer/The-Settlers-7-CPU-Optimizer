@@ -23,6 +23,9 @@ Effect:
 Supported CPUs with: 2, 4, 6, 8, 12, 16, 20, 24, 32, 48 threads. Works only for CPUs with HT technology
 
 
+
+The below Screenshots were taken with all settings maxed out, 4k on I7 7700K and GTX1080Ti.
+
 **BEFORE:**
 
 ![Settlers 7 - Before 1](https://user-images.githubusercontent.com/84144527/118640305-1c914200-b7d9-11eb-96d2-eb66fd4524eb.jpg)
