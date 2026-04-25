@@ -1,28 +1,30 @@
 # The Settlers 7 CPU Optimizer
 
-A small Windows utility that improves CPU scheduling for **The Settlers 7** by changing the game's process affinity and priority after launch.
+A small Windows PowerShell script that improves CPU scheduling for **The Settlers 7** by changing the game's process affinity and priority after launch.
 
-The Settlers 7 can perform poorly on some CPUs with Hyper-Threading enabled. This tool works around that behavior by limiting the game process to physical CPU cores and setting the process priority to **High**. Depending on your hardware and the in-game situation, this can improve performance without changing graphics settings.
-
-Current version: **1.02**
+The Settlers 7 can perform poorly on some CPUs with Hyper-Threading enabled. This script works around that behavior by limiting the game process to physical CPU cores and setting the process priority to **High**. Depending on your hardware and the in-game situation, this can improve performance without changing graphics settings.
 
 ## What it does
 
 When started, the optimizer:
 
-1. Launches The Settlers 7 through Ubisoft Launcher, when available.
-2. Waits for the game process to start.
-3. Changes the game process affinity so it avoids Hyper-Threading threads.
-4. Sets the game process priority to **High**.
-5. Closes automatically after the optimization is applied.
+1. Detects your physical CPU cores and logical CPU threads.
+2. Checks whether Hyper-Threading or similar logical-threading behavior appears to be enabled.
+3. Launches The Settlers 7 through Ubisoft Connect, when available.
+4. Waits for `Settlers7R.exe` to start.
+5. Sets the game process priority to **High**.
+6. Applies a CPU affinity mask that avoids logical sibling threads.
 
-The tool only targets the running The Settlers 7 process.
+The script only targets the running The Settlers 7 process.
 
-## Performance impact
+## Requirements
 
-Reported improvement: **7-30 FPS**, depending on CPU, GPU, game state, and scene complexity.
+- Windows
+- PowerShell
+- The Settlers 7 installed through Ubisoft Connect or already running manually
+- A supported CPU thread count
 
-The screenshots below were captured at 4K with maximum settings on an Intel i7-7700K and GTX 1080 Ti.
+No Python environment, virtual environment, packaged executable, or build tooling is required.
 
 ## Supported CPUs
 
@@ -30,29 +32,25 @@ The optimizer supports CPUs with the following logical thread counts:
 
 `2, 4, 6, 8, 12, 16, 20, 24, 32, 48`
 
-It is intended for CPUs with Hyper-Threading or a similar logical-threading technology.
+It is intended for CPUs with Hyper-Threading or similar logical-threading technology.
 
 ## Usage
 
-### Option 1: Run the executable
+Open PowerShell in the repository folder and run:
 
-Download and run the `.exe` file, then wait for the optimizer to finish.
-
-The tool needs to be started each time you launch the game, because Windows process affinity and priority are reset when the game closes.
-
-### Option 2: Run from source
-
-Download the source code and run:
-
-```bash
-python main.py
+```powershell
+.\settlers7-cpu-optimizer.ps1
 ```
 
-## Antivirus warning
+The script will try to launch the game through Ubisoft Connect. If that does not work for your installation, launch the game manually first, then run the script.
 
-Some antivirus tools may flag the packaged `.exe` file as suspicious. This can happen with bundled Python executables, but you should still make your own decision before running any executable downloaded from the internet.
+You need to run the optimizer each time you launch the game, because Windows process affinity and priority are reset when the game closes.
 
-If you are unsure, review the source code and run `main.py` directly with Python instead of using the packaged executable.
+## Performance impact
+
+Reported improvement: **7-30 FPS**, depending on CPU, GPU, game state, and scene complexity.
+
+The screenshots below were captured at 4K with maximum settings on an Intel i7-7700K and GTX 1080 Ti.
 
 ## Screenshots
 
