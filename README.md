@@ -1,8 +1,28 @@
 # The Settlers 7 CPU Optimizer
 
-A small Windows PowerShell script that improves CPU scheduling for **The Settlers 7** by changing the game's process affinity and priority after launch.
+A small Windows utility that improves CPU scheduling for **The Settlers 7** by changing the game's process affinity and priority after launch.
 
-The Settlers 7 can perform poorly on some CPUs with Hyper-Threading enabled. This script works around that behavior by limiting the game process to physical CPU cores and setting the process priority to **High**. Depending on your hardware and the in-game situation, this can improve performance without changing graphics settings.
+The Settlers 7 can perform poorly on some CPUs with Hyper-Threading enabled. This tool works around that behavior by limiting the game process to physical CPU cores and setting the process priority to **High**. Depending on your hardware and the in-game situation, this can improve performance without changing graphics settings.
+
+## Recommended version
+
+The recommended version is the PowerShell script in this repository:
+
+```powershell
+.\settlers7-cpu-optimizer.ps1
+```
+
+This version is simple, readable, and does not require Python, a virtual environment, PyInstaller, or a packaged executable.
+
+## Legacy executable
+
+An old prebuilt `.exe` version may still be available in the repository's GitHub Releases.
+
+That executable is kept only as a legacy convenience option. The current repository source is now maintained as a simple PowerShell script instead.
+
+Some antivirus tools may flag the old `.exe` as suspicious. This is likely a false positive caused by the way Python applications are packaged into standalone executables, but you should still make your own decision before running any executable downloaded from the internet.
+
+If you are unsure, use the PowerShell script instead of the legacy `.exe`.
 
 ## What it does
 
@@ -23,8 +43,6 @@ The script only targets the running The Settlers 7 process.
 - PowerShell
 - The Settlers 7 installed through Ubisoft Connect or already running manually
 - A supported CPU thread count
-
-No Python environment, virtual environment, packaged executable, or build tooling is required.
 
 ## Supported CPUs
 
