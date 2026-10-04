@@ -45,7 +45,8 @@ function Get-TargetAffinityMask {
     )
 
     if (-not $AffinityMasks.ContainsKey($LogicalThreads)) {
-        throw "Unsupported CPU thread count: $LogicalThreads. Supported counts: $($AffinityMasks.Keys | Sort-Object | ForEach-Object { $_ }) -join ', '."
+        $supportedCounts = ($AffinityMasks.Keys | Sort-Object) -join ", "
+        throw "Unsupported CPU thread count: $LogicalThreads. Supported counts: $supportedCounts."
     }
 
     $mask = $AffinityMasks[$LogicalThreads]
