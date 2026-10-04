@@ -1,0 +1,48 @@
+name: Publish v2.1.0
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-v2.1.0.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v4
+        with:
+          ref: efe92c0016632c7b78edf24eefd4156421699e60
+
+      - name: Publish v2.1.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > /tmp/release-notes.md <<'EOF'
+          ## Topology-aware affinity
+
+          v2.1.0 replaces the old hard-coded CPU affinity masks with Windows processor-topology discovery.
+
+          ### Changes
+
+          - derives physical-core/logical-processor relationships through `GetLogicalProcessorInformationEx(RelationProcessorCore)`
+          - no longer assumes SMT siblings use adjacent logical-processor numbers
+          - supports mixed single-threaded and SMT-enabled core layouts within one Windows processor group
+          - explicitly rejects multi-group systems instead of applying a partial affinity mask
+          - adds Pester unit tests and native topology smoke tests under Windows PowerShell 5.1 and PowerShell 7
+          - pins Pester 6.2.0 and PSScriptAnalyzer 1.25.0 in CI
+          - documents `Unblock-File` for downloaded scripts
+          - adds a validated Release workflow for future releases
+
+          The maintained artifact remains the single readable PowerShell script.
+          EOF
+
+          gh release create v2.1.0             settlers7-cpu-optimizer.ps1#PowerShell-script             --target efe92c0016632c7b78edf24eefd4156421699e60             --title "v2.1.0 — Topology-aware affinity"             --notes-file /tmp/release-notes.md             --latest
