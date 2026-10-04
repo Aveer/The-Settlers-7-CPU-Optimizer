@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example v2.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-release:
+    name: Validate and release
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        shell: pwsh
+        run: |
+          if ("\${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "\${{ inputs.version }}"
+          }
+          else {
+            $version = $env:GITHUB_REF_NAME
+          }
+
+          if ($version -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release version must match vMAJOR.MINOR.PATCH."
+          }
+
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Parse PowerShell script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ./settlers7-cpu-optimizer.ps1),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+
+          if ($errors.Count -gt 0) {
+            $errors | Format-List
+            exit 1
+          }
+
+      - name: Smoke-test Windows topology API
+        shell: pwsh
+        run: |
+          . ./settlers7-cpu-optimizer.ps1 -NoRun
+          $topology = @(Get-SystemCoreTopology)
+          $plan = Get-AffinityPlan -CoreTopology $topology
+
+          if ($plan.AffinityMask -eq 0) {
+            throw "Topology-derived affinity mask is empty."
+          }
+
+      - name: Install pinned test and analysis tools
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -RequiredVersion 6.2.0 -Scope CurrentUser -Force
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force
+
+      - name: Run Pester
+        shell: pwsh
+        run: |
+          Invoke-Pester -Path ./tests -CI -Output Detailed
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path ./settlers7-cpu-optimizer.ps1 -Severity Error
+
+          if ($results) {
+            $results | Format-Table -AutoSize
+            exit 1
+          }
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: \${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release view $env:RELEASE_VERSION *> $null
+
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $env:RELEASE_VERSION already exists."
+          }
+
+          $arguments = @(
+            "release", "create", $env:RELEASE_VERSION,
+            "./settlers7-cpu-optimizer.ps1#PowerShell-script",
+            "--title", "$env:RELEASE_VERSION - PowerShell edition",
+            "--generate-notes",
+            "--latest"
+          )
+
+          if ("\${{ github.event_name }}" -eq "workflow_dispatch") {
+            $arguments += @("--target", "main")
+          }
+
+          & gh @arguments
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub release creation failed."
+          }
