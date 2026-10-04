@@ -1,57 +1,45 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
+    tags:
+      - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example v2.1.0"
+        required: true
+        type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  validate-powershell:
-    name: Validate PowerShell
+  validate-and-release:
+    name: Validate and release
     runs-on: windows-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Parse with Windows PowerShell 5.1
-        shell: powershell
+      - name: Resolve release version
+        shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path .\settlers7-cpu-optimizer.ps1),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-
-          if ($errors.Count -gt 0) {
-            $errors | Format-List
-            exit 1
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          }
+          else {
+            $version = $env:GITHUB_REF_NAME
           }
 
-      - name: Smoke-test topology API with Windows PowerShell 5.1
-        shell: powershell
-        run: |
-          . .\settlers7-cpu-optimizer.ps1 -NoRun
-          $topology = @(Get-SystemCoreTopology)
-
-          if ($topology.Count -lt 1) {
-            throw "Windows returned no processor-core topology records."
+          if ($version -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release version must match vMAJOR.MINOR.PATCH."
           }
 
-          $plan = Get-AffinityPlan -CoreTopology $topology
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
 
-          if ($plan.AffinityMask -eq 0) {
-            throw "Topology-derived affinity mask is empty."
-          }
-
-      - name: Parse with PowerShell 7
+      - name: Parse PowerShell script
         shell: pwsh
         run: |
           $tokens = $null
@@ -67,16 +55,11 @@ jobs:
             exit 1
           }
 
-      - name: Smoke-test topology API with PowerShell 7
+      - name: Smoke-test Windows topology API
         shell: pwsh
         run: |
           . ./settlers7-cpu-optimizer.ps1 -NoRun
           $topology = @(Get-SystemCoreTopology)
-
-          if ($topology.Count -lt 1) {
-            throw "Windows returned no processor-core topology records."
-          }
-
           $plan = Get-AffinityPlan -CoreTopology $topology
 
           if ($plan.AffinityMask -eq 0) {
@@ -103,4 +86,33 @@ jobs:
           if ($results) {
             $results | Format-Table -AutoSize
             exit 1
+          }
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release view $env:RELEASE_VERSION *> $null
+
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $env:RELEASE_VERSION already exists."
+          }
+
+          $arguments = @(
+            "release", "create", $env:RELEASE_VERSION,
+            "./settlers7-cpu-optimizer.ps1#PowerShell-script",
+            "--title", "$env:RELEASE_VERSION - PowerShell edition",
+            "--generate-notes",
+            "--latest"
+          )
+
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $arguments += @("--target", "main")
+          }
+
+          & gh @arguments
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub release creation failed."
           }

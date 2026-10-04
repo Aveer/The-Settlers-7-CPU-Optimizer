@@ -1,9 +1,13 @@
+param(
+    [switch]$NoRun
+)
+
 <#
 The Settlers 7 CPU Optimizer
 
-This script sets The Settlers 7 to High process priority and applies a CPU
-affinity mask that avoids one logical sibling thread per physical core on
-supported, uniform two-threads-per-core CPU topologies.
+This script sets The Settlers 7 to High process priority and limits the game
+to one logical processor per physical CPU core. Windows processor-topology
+information is used so the optimizer does not rely on hard-coded thread masks.
 #>
 
 $ErrorActionPreference = "Stop"
@@ -11,55 +15,250 @@ $ErrorActionPreference = "Stop"
 $GameUri = "uplay://launch/11788/0"
 $ProcessName = "Settlers7R"
 
-# These masks preserve the behavior of the original v1.x utility: one logical
-# processor from each adjacent pair is selected. They are intentionally limited
-# to CPU layouts that the project has historically supported.
-$AffinityMasks = @{
-    2  = [Int64]2
-    4  = [Int64]10
-    6  = [Int64]42
-    8  = [Int64]170
-    12 = [Int64]2730
-    16 = [Int64]43690
-    20 = [Int64]699050
-    24 = [Int64]11184810
-    32 = [Int64]2863311530
-    48 = [Int64]187649984473770
-}
+function Initialize-ProcessorTopologyApi {
+    if ("Settlers7CpuOptimizer.ProcessorTopology" -as [type]) {
+        return
+    }
 
-function Get-CpuInfo {
-    $processors = Get-CimInstance -ClassName Win32_Processor
-    $physicalCores = ($processors | Measure-Object -Property NumberOfCores -Sum).Sum
-    $logicalThreads = ($processors | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
+    $source = @'
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 
-    [PSCustomObject]@{
-        PhysicalCores  = [int]$physicalCores
-        LogicalThreads = [int]$logicalThreads
+namespace Settlers7CpuOptimizer
+{
+    public sealed class ProcessorCore
+    {
+        public ushort Group { get; set; }
+        public ulong Mask { get; set; }
+        public byte EfficiencyClass { get; set; }
+        public bool HasSmt { get; set; }
+    }
+
+    public static class ProcessorTopology
+    {
+        private enum LogicalProcessorRelationship
+        {
+            RelationProcessorCore = 0
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetLogicalProcessorInformationEx(
+            LogicalProcessorRelationship relationshipType,
+            IntPtr buffer,
+            ref uint returnedLength);
+
+        public static ProcessorCore[] GetCores()
+        {
+            uint returnedLength = 0;
+            GetLogicalProcessorInformationEx(
+                LogicalProcessorRelationship.RelationProcessorCore,
+                IntPtr.Zero,
+                ref returnedLength);
+
+            if (returnedLength == 0)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            IntPtr buffer = Marshal.AllocHGlobal(checked((int)returnedLength));
+
+            try
+            {
+                if (!GetLogicalProcessorInformationEx(
+                    LogicalProcessorRelationship.RelationProcessorCore,
+                    buffer,
+                    ref returnedLength))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                var cores = new List<ProcessorCore>();
+                uint offset = 0;
+
+                while (offset < returnedLength)
+                {
+                    IntPtr item = IntPtr.Add(buffer, checked((int)offset));
+                    int relationship = Marshal.ReadInt32(item, 0);
+                    int size = Marshal.ReadInt32(item, 4);
+
+                    if (size <= 0)
+                    {
+                        throw new InvalidOperationException(
+                            "Windows returned an invalid processor-topology record.");
+                    }
+
+                    if (relationship == (int)LogicalProcessorRelationship.RelationProcessorCore)
+                    {
+                        byte flags = Marshal.ReadByte(item, 8);
+                        byte efficiencyClass = Marshal.ReadByte(item, 9);
+                        ushort groupCount = unchecked((ushort)Marshal.ReadInt16(item, 30));
+
+                        if (groupCount != 1)
+                        {
+                            throw new NotSupportedException(
+                                "A physical core spanning multiple processor groups is not supported.");
+                        }
+
+                        IntPtr groupAffinity = IntPtr.Add(item, 32);
+                        ulong mask = IntPtr.Size == 8
+                            ? unchecked((ulong)Marshal.ReadInt64(groupAffinity, 0))
+                            : unchecked((uint)Marshal.ReadInt32(groupAffinity, 0));
+
+                        ushort group = unchecked(
+                            (ushort)Marshal.ReadInt16(groupAffinity, IntPtr.Size));
+
+                        cores.Add(new ProcessorCore
+                        {
+                            Group = group,
+                            Mask = mask,
+                            EfficiencyClass = efficiencyClass,
+                            HasSmt = (flags & 0x1) != 0
+                        });
+                    }
+
+                    offset += checked((uint)size);
+                }
+
+                return cores.ToArray();
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
     }
 }
+'@
 
-function Get-TargetAffinityMask {
+    Add-Type -TypeDefinition $source -Language CSharp
+}
+
+function Get-SystemCoreTopology {
+    Initialize-ProcessorTopologyApi
+    return [Settlers7CpuOptimizer.ProcessorTopology]::GetCores()
+}
+
+function Get-SetBitCount {
     param(
         [Parameter(Mandatory = $true)]
-        [int]$LogicalThreads
+        [UInt64]$Mask
     )
 
-    if (-not $AffinityMasks.ContainsKey($LogicalThreads)) {
-        $supportedCounts = ($AffinityMasks.Keys | Sort-Object) -join ", "
-        throw "Unsupported CPU thread count: $LogicalThreads. Supported counts: $supportedCounts."
+    $count = 0
+    $value = $Mask
+
+    while ($value -ne 0) {
+        $count += [int]($value -band [UInt64]1)
+        $value = $value -shr 1
     }
 
-    $mask = $AffinityMasks[$LogicalThreads]
+    return $count
+}
 
-    if ([IntPtr]::Size -eq 4 -and $mask -gt [Int32]::MaxValue) {
-        throw "This CPU requires 64-bit PowerShell to apply its affinity mask."
+function Get-LowestSetBit {
+    param(
+        [Parameter(Mandatory = $true)]
+        [UInt64]$Mask
+    )
+
+    if ($Mask -eq 0) {
+        throw "Processor-core affinity mask cannot be zero."
     }
 
-    return [IntPtr]$mask
+    for ($index = 0; $index -lt 64; $index++) {
+        $bit = [UInt64]1 -shl $index
+
+        if (($Mask -band $bit) -ne 0) {
+            return $bit
+        }
+    }
+
+    throw "Unable to select a logical processor from affinity mask $Mask."
+}
+
+function Get-AffinityPlan {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$CoreTopology
+    )
+
+    $cores = @($CoreTopology)
+
+    if ($cores.Count -eq 0) {
+        throw "Windows did not report any physical CPU cores."
+    }
+
+    $groups = @(
+        $cores |
+            ForEach-Object { [int]$_.Group } |
+            Sort-Object -Unique
+    )
+
+    if ($groups.Count -ne 1) {
+        throw "Multiple Windows processor groups were detected. This optimizer intentionally does not apply a partial process-affinity mask on multi-group systems."
+    }
+
+    $affinityMask = [UInt64]0
+    $logicalProcessorCount = 0
+    $smtCoreCount = 0
+
+    foreach ($core in $cores) {
+        $coreMask = [UInt64]$core.Mask
+
+        if ($coreMask -eq 0) {
+            throw "Windows reported a physical core with an empty affinity mask."
+        }
+
+        $logicalProcessorsOnCore = Get-SetBitCount -Mask $coreMask
+        $logicalProcessorCount += $logicalProcessorsOnCore
+
+        if ($logicalProcessorsOnCore -gt 1) {
+            $smtCoreCount++
+        }
+
+        $selectedProcessor = Get-LowestSetBit -Mask $coreMask
+        $affinityMask = $affinityMask -bor $selectedProcessor
+    }
+
+    [PSCustomObject]@{
+        Group                 = $groups[0]
+        AffinityMask          = $affinityMask
+        PhysicalCoreCount     = $cores.Count
+        LogicalProcessorCount = $logicalProcessorCount
+        SmtCoreCount          = $smtCoreCount
+    }
+}
+
+function ConvertTo-IntPtrAffinityMask {
+    param(
+        [Parameter(Mandatory = $true)]
+        [UInt64]$AffinityMask
+    )
+
+    if ($AffinityMask -eq 0) {
+        throw "Affinity mask cannot be zero."
+    }
+
+    if ([IntPtr]::Size -eq 4) {
+        if ($AffinityMask -gt [UInt32]::MaxValue) {
+            throw "This affinity mask requires 64-bit PowerShell."
+        }
+
+        $bytes = [BitConverter]::GetBytes([UInt32]$AffinityMask)
+        $signedMask = [BitConverter]::ToInt32($bytes, 0)
+        return [IntPtr]$signedMask
+    }
+
+    $bytes = [BitConverter]::GetBytes($AffinityMask)
+    $signedMask = [BitConverter]::ToInt64($bytes, 0)
+    return [IntPtr]$signedMask
 }
 
 function Get-RunningGameProcess {
-    return Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Select-Object -First 1
+    return Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
+        Select-Object -First 1
 }
 
 function Wait-ForGameProcess {
@@ -96,33 +295,42 @@ function Start-OrFindGameProcess {
     return Wait-ForGameProcess
 }
 
-$cpu = Get-CpuInfo
-Write-Host "Physical cores:  $($cpu.PhysicalCores)"
-Write-Host "Logical threads: $($cpu.LogicalThreads)"
+function Invoke-Settlers7CpuOptimizer {
+    $topology = Get-SystemCoreTopology
+    $plan = Get-AffinityPlan -CoreTopology $topology
 
-if ($cpu.PhysicalCores -le 0 -or $cpu.LogicalThreads -le 0) {
-    throw "Unable to detect CPU topology."
+    Write-Host "Physical cores:     $($plan.PhysicalCoreCount)"
+    Write-Host "Logical processors: $($plan.LogicalProcessorCount)"
+    Write-Host "SMT-enabled cores:  $($plan.SmtCoreCount)"
+    Write-Host "Processor group:    $($plan.Group)"
+
+    if ($plan.SmtCoreCount -eq 0) {
+        Write-Host "No SMT sibling threads were detected. Nothing to optimize."
+        return
+    }
+
+    $targetAffinity = ConvertTo-IntPtrAffinityMask -AffinityMask $plan.AffinityMask
+    $gameProcess = Start-OrFindGameProcess
+
+    Write-Host "Found $($gameProcess.ProcessName).exe with PID $($gameProcess.Id)."
+
+    try {
+        $gameProcess.Refresh()
+        Write-Host "Current affinity: $($gameProcess.ProcessorAffinity)"
+
+        $gameProcess.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High
+        $gameProcess.ProcessorAffinity = $targetAffinity
+        $gameProcess.Refresh()
+    }
+    catch {
+        throw "Unable to update the game process priority or affinity. The game may have exited, PowerShell may not have permission to modify it, or Windows may have restricted the process to a different processor group. Details: $($_.Exception.Message)"
+    }
+
+    Write-Host "New affinity:     $($gameProcess.ProcessorAffinity)"
+    Write-Host "Priority:         $($gameProcess.PriorityClass)"
+    Write-Host "The Settlers 7 was optimized successfully."
 }
 
-if ($cpu.LogicalThreads -ne ($cpu.PhysicalCores * 2)) {
-    throw "Unsupported CPU topology. This optimizer expects exactly two logical threads per physical core. SMT-disabled, partial-SMT, and hybrid P/E-core layouts are not supported."
+if (-not $NoRun) {
+    Invoke-Settlers7CpuOptimizer
 }
-
-$targetAffinity = Get-TargetAffinityMask -LogicalThreads $cpu.LogicalThreads
-$gameProcess = Start-OrFindGameProcess
-
-Write-Host "Found $($gameProcess.ProcessName).exe with PID $($gameProcess.Id)."
-
-try {
-    Write-Host "Current affinity: $($gameProcess.ProcessorAffinity)"
-    $gameProcess.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High
-    $gameProcess.ProcessorAffinity = $targetAffinity
-    $gameProcess.Refresh()
-}
-catch {
-    throw "Unable to update the game process priority or affinity. The game may have exited, or PowerShell may not have permission to modify it. Details: $($_.Exception.Message)"
-}
-
-Write-Host "New affinity:     $($gameProcess.ProcessorAffinity)"
-Write-Host "Priority:         $($gameProcess.PriorityClass)"
-Write-Host "The Settlers 7 was optimized successfully."
