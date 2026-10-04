@@ -1,0 +1,71 @@
+name: Publish PowerShell release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-powershell-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Publish v2 and mark v1 releases as legacy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TARGET: a336817f3a43f698f82a74ebb606e4be6a3b8a5a
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > /tmp/v2-notes.md <<'EOF'
+          ## PowerShell edition
+
+          The maintained version of The Settlers 7 CPU Optimizer is now a single readable PowerShell script.
+
+          ### What changed from v1.x
+
+          - no Python runtime, virtual environment, PyInstaller, or packaged executable
+          - uses an already-running Settlers 7 process when available
+          - Ubisoft Connect launch is best-effort; manual launch remains a supported fallback
+          - clearer CPU-topology and affinity safety checks
+          - clearer errors when process priority or affinity cannot be changed
+
+          The 2021 v1.x executable releases remain available for historical/reference purposes, but they are no longer maintained or recommended.
+          EOF
+
+          if gh release view v2.0.0 >/dev/null 2>&1; then
+            gh release edit v2.0.0               --title "v2.0.0 — PowerShell edition"               --notes-file /tmp/v2-notes.md
+            gh release upload v2.0.0 settlers7-cpu-optimizer.ps1#PowerShell-script --clobber
+          else
+            gh release create v2.0.0               settlers7-cpu-optimizer.ps1#PowerShell-script               --target "$RELEASE_TARGET"               --title "v2.0.0 — PowerShell edition"               --notes-file /tmp/v2-notes.md
+          fi
+
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v2.0.0" --jq '.id')"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id"             -F make_latest=true >/dev/null
+
+          for tag in v1.02 v1.01; do
+            body="$(gh release view "$tag" --json body --jq '.body // ""')"
+            marker="Legacy 2021 executable release. The maintained version is v2.0.0 (PowerShell)."
+
+            if [[ "$body" != *"$marker"* ]]; then
+              {
+                printf '> [!IMPORTANT]\n'
+                printf '> %s\n\n' "$marker"
+                printf '%s\n' "$body"
+              } > /tmp/legacy-notes.md
+            else
+              printf '%s\n' "$body" > /tmp/legacy-notes.md
+            fi
+
+            gh release edit "$tag"               --title "$tag — Legacy executable"               --notes-file /tmp/legacy-notes.md
+          done
