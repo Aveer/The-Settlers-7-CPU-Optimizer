@@ -26,8 +26,8 @@ jobs:
       - name: Resolve release version
         shell: pwsh
         run: |
-          if ("\${{ github.event_name }}" -eq "workflow_dispatch") {
-            $version = "\${{ inputs.version }}"
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
           }
           else {
             $version = $env:GITHUB_REF_NAME
@@ -90,7 +90,7 @@ jobs:
 
       - name: Publish GitHub release
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           gh release view $env:RELEASE_VERSION *> $null
@@ -107,7 +107,7 @@ jobs:
             "--latest"
           )
 
-          if ("\${{ github.event_name }}" -eq "workflow_dispatch") {
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
             $arguments += @("--target", "main")
           }
 
