@@ -10,9 +10,9 @@ The Settlers 7 can perform poorly on some CPUs with simultaneous multithreading 
 
 The recommended and maintained version is the PowerShell script in this repository:
 
-\`\`\`powershell
-.\\settlers7-cpu-optimizer.ps1
-\`\`\`
+```powershell
+.\settlers7-cpu-optimizer.ps1
+```
 
 This version is readable and does not require Python, a virtual environment, PyInstaller, or a packaged executable.
 
@@ -20,25 +20,25 @@ This version is readable and does not require Python, a virtual environment, PyI
 
 Windows may mark a PowerShell script downloaded from the internet as coming from an external source. If PowerShell blocks the script, review it first and then remove that mark:
 
-\`\`\`powershell
-Unblock-File .\\settlers7-cpu-optimizer.ps1
-\`\`\`
+```powershell
+Unblock-File .\settlers7-cpu-optimizer.ps1
+```
 
 Then run it normally:
 
-\`\`\`powershell
-.\\settlers7-cpu-optimizer.ps1
-\`\`\`
+```powershell
+.\settlers7-cpu-optimizer.ps1
+```
 
 Changing the machine-wide PowerShell execution policy is not required for this project.
 
 ## Legacy executable
 
-The old v1.x prebuilt \`.exe\` versions in GitHub Releases are **legacy builds from 2021**. They are preserved for historical/reference purposes and are no longer the maintained version of the optimizer.
+The old v1.x prebuilt `.exe` versions in GitHub Releases are **legacy builds from 2021**. They are preserved for historical/reference purposes and are no longer the maintained version of the optimizer.
 
-Some antivirus tools may flag the old \`.exe\` as suspicious. This is likely a false positive caused by the way the old Python application was packaged into a standalone executable, but you should still make your own decision before running any executable downloaded from the internet.
+Some antivirus tools may flag the old `.exe` as suspicious. This is likely a false positive caused by the way the old Python application was packaged into a standalone executable, but you should still make your own decision before running any executable downloaded from the internet.
 
-For normal use, use the PowerShell script instead of the legacy \`.exe\`.
+For normal use, use the PowerShell script instead of the legacy `.exe`.
 
 ## What it does
 
@@ -47,8 +47,8 @@ When started, the optimizer:
 1. Reads the physical-core topology reported by Windows.
 2. Identifies which logical processors belong to each physical core.
 3. Builds an affinity mask that keeps one logical processor from every physical core.
-4. Reuses an already-running \`Settlers7R.exe\` process, or tries to launch the game through Ubisoft Connect.
-5. Waits for \`Settlers7R.exe\` if the launcher cannot start it automatically.
+4. Reuses an already-running `Settlers7R.exe` process, or tries to launch the game through Ubisoft Connect.
+5. Waits for `Settlers7R.exe` if the launcher cannot start it automatically.
 6. Sets the game process priority to **High**.
 7. Applies the topology-derived CPU affinity mask.
 
@@ -56,7 +56,7 @@ The script only targets the running The Settlers 7 process.
 
 ## CPU support
 
-The optimizer no longer uses hard-coded masks or assumes that SMT siblings have adjacent logical-processor numbers. It uses the Windows \`GetLogicalProcessorInformationEx(RelationProcessorCore)\` API to discover the actual relationship between physical cores and logical processors.
+The optimizer no longer uses hard-coded masks or assumes that SMT siblings have adjacent logical-processor numbers. It uses the Windows `GetLogicalProcessorInformationEx(RelationProcessorCore)` API to discover the actual relationship between physical cores and logical processors.
 
 This also makes mixed/hybrid layouts safer: a single-threaded core remains available, while an SMT-enabled core contributes one of its logical processors to the target mask.
 
@@ -79,13 +79,13 @@ Use 64-bit PowerShell on modern systems. A 32-bit PowerShell process cannot repr
 
 Open PowerShell in the repository folder and run:
 
-\`\`\`powershell
-.\\settlers7-cpu-optimizer.ps1
-\`\`\`
+```powershell
+.\settlers7-cpu-optimizer.ps1
+```
 
 If The Settlers 7 is already running, the script uses the existing process and does not try to launch another instance.
 
-Otherwise, the script tries to launch the game through Ubisoft Connect. If the \`uplay://\` URI cannot be opened on your system, the script continues running and waits for you to launch the game manually.
+Otherwise, the script tries to launch the game through Ubisoft Connect. If the `uplay://` URI cannot be opened on your system, the script continues running and waits for you to launch the game manually.
 
 You need to run the optimizer each time you launch the game, because Windows process affinity and priority are reset when the game closes.
 
