@@ -1,5 +1,7 @@
 # The Settlers 7 CPU Optimizer
 
+[![CI](https://github.com/Aveer/The-Settlers-7-CPU-Optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/Aveer/The-Settlers-7-CPU-Optimizer/actions/workflows/ci.yml)
+
 A small Windows utility that improves CPU scheduling for **The Settlers 7** by changing the game's process affinity and priority after launch.
 
 The Settlers 7 can perform poorly on some CPUs with Hyper-Threading enabled. This tool works around that behavior by limiting the game process to one logical processor per physical core and setting the process priority to **High**. Depending on your hardware and the in-game situation, this can improve performance without changing graphics settings.
