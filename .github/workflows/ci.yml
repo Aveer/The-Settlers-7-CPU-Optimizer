@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,6 +35,22 @@ jobs:
             exit 1
           }
 
+      - name: Smoke-test topology API with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          . .\settlers7-cpu-optimizer.ps1 -NoRun
+          $topology = @(Get-SystemCoreTopology)
+
+          if ($topology.Count -lt 1) {
+            throw "Windows returned no processor-core topology records."
+          }
+
+          $plan = Get-AffinityPlan -CoreTopology $topology
+
+          if ($plan.AffinityMask -eq 0) {
+            throw "Topology-derived affinity mask is empty."
+          }
+
       - name: Parse with PowerShell 7
         shell: pwsh
         run: |
@@ -50,16 +67,38 @@ jobs:
             exit 1
           }
 
-      - name: Install PSScriptAnalyzer
+      - name: Smoke-test topology API with PowerShell 7
+        shell: pwsh
+        run: |
+          . ./settlers7-cpu-optimizer.ps1 -NoRun
+          $topology = @(Get-SystemCoreTopology)
+
+          if ($topology.Count -lt 1) {
+            throw "Windows returned no processor-core topology records."
+          }
+
+          $plan = Get-AffinityPlan -CoreTopology $topology
+
+          if ($plan.AffinityMask -eq 0) {
+            throw "Topology-derived affinity mask is empty."
+          }
+
+      - name: Install pinned test and analysis tools
         shell: pwsh
         run: |
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          Install-Module Pester -RequiredVersion 6.2.0 -Scope CurrentUser -Force
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force
+
+      - name: Run Pester
+        shell: pwsh
+        run: |
+          Invoke-Pester -Path ./tests -CI -Output Detailed
 
       - name: Run PSScriptAnalyzer
         shell: pwsh
         run: |
-          $results = Invoke-ScriptAnalyzer             -Path ./settlers7-cpu-optimizer.ps1             -Severity Error
+          $results = Invoke-ScriptAnalyzer -Path ./settlers7-cpu-optimizer.ps1 -Severity Error
 
           if ($results) {
             $results | Format-Table -AutoSize
