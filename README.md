@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/settlers7-cpu-optimizer-banner.jpg" alt="The Settlers 7 CPU Optimizer — topology-aware PowerShell CPU affinity optimizer" width="100%">
+</p>
+
 # The Settlers 7 CPU Optimizer
 
 [![CI](https://github.com/Aveer/The-Settlers-7-CPU-Optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/Aveer/The-Settlers-7-CPU-Optimizer/actions/workflows/ci.yml)
