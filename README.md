@@ -2,11 +2,11 @@
 
 A small Windows utility that improves CPU scheduling for **The Settlers 7** by changing the game's process affinity and priority after launch.
 
-The Settlers 7 can perform poorly on some CPUs with Hyper-Threading enabled. This tool works around that behavior by limiting the game process to physical CPU cores and setting the process priority to **High**. Depending on your hardware and the in-game situation, this can improve performance without changing graphics settings.
+The Settlers 7 can perform poorly on some CPUs with Hyper-Threading enabled. This tool works around that behavior by limiting the game process to one logical processor per physical core and setting the process priority to **High**. Depending on your hardware and the in-game situation, this can improve performance without changing graphics settings.
 
 ## Recommended version
 
-The recommended version is the PowerShell script in this repository:
+The recommended and maintained version is the PowerShell script in this repository:
 
 ```powershell
 .\settlers7-cpu-optimizer.ps1
@@ -16,24 +16,22 @@ This version is simple, readable, and does not require Python, a virtual environ
 
 ## Legacy executable
 
-An old prebuilt `.exe` version may still be available in the repository's GitHub Releases.
+The old v1.x prebuilt `.exe` versions in GitHub Releases are **legacy builds from 2021**. They are preserved for historical/reference purposes and are no longer the maintained version of the optimizer.
 
-That executable is kept only as a legacy convenience option. The current repository source is now maintained as a simple PowerShell script instead.
+Some antivirus tools may flag the old `.exe` as suspicious. This is likely a false positive caused by the way the old Python application was packaged into a standalone executable, but you should still make your own decision before running any executable downloaded from the internet.
 
-Some antivirus tools may flag the old `.exe` as suspicious. This is likely a false positive caused by the way Python applications are packaged into standalone executables, but you should still make your own decision before running any executable downloaded from the internet.
-
-If you are unsure, use the PowerShell script instead of the legacy `.exe`.
+For normal use, use the PowerShell script instead of the legacy `.exe`.
 
 ## What it does
 
 When started, the optimizer:
 
 1. Detects your physical CPU cores and logical CPU threads.
-2. Checks whether Hyper-Threading or similar logical-threading behavior appears to be enabled.
-3. Launches The Settlers 7 through Ubisoft Connect, when available.
-4. Waits for `Settlers7R.exe` to start.
+2. Verifies that the CPU has a supported uniform two-threads-per-core topology.
+3. Reuses an already-running `Settlers7R.exe` process, or tries to launch the game through Ubisoft Connect.
+4. Waits for `Settlers7R.exe` if the launcher cannot start it automatically.
 5. Sets the game process priority to **High**.
-6. Applies a CPU affinity mask that avoids logical sibling threads.
+6. Applies a CPU affinity mask that keeps one logical processor from each supported sibling pair.
 
 The script only targets the running The Settlers 7 process.
 
@@ -42,15 +40,19 @@ The script only targets the running The Settlers 7 process.
 - Windows
 - PowerShell
 - The Settlers 7 installed through Ubisoft Connect or already running manually
-- A supported CPU thread count
+- A supported CPU topology and logical-thread count
 
 ## Supported CPUs
 
-The optimizer supports CPUs with the following logical thread counts:
+The optimizer currently supports conventional CPUs with **exactly two logical threads per physical core** and one of the following logical-thread counts:
 
 `2, 4, 6, 8, 12, 16, 20, 24, 32, 48`
 
-It is intended for CPUs with Hyper-Threading or similar logical-threading technology.
+The affinity masks preserve the behavior of the original v1.x utility and assume that the two logical processors belonging to each physical core are exposed as adjacent logical-processor indices.
+
+The script intentionally stops instead of applying an affinity mask when the detected topology is not a uniform 2-way SMT layout. In particular, **hybrid P/E-core CPUs, SMT-disabled systems, and partial-SMT layouts are not supported** by the current implementation.
+
+On 32-bit PowerShell, affinity masks that exceed the 32-bit pointer range are rejected with a clear error; use 64-bit PowerShell for those CPUs.
 
 ## Usage
 
@@ -60,7 +62,9 @@ Open PowerShell in the repository folder and run:
 .\settlers7-cpu-optimizer.ps1
 ```
 
-The script will try to launch the game through Ubisoft Connect. If that does not work for your installation, launch the game manually first, then run the script.
+If The Settlers 7 is already running, the script uses the existing process and does not try to launch another instance.
+
+Otherwise, the script tries to launch the game through Ubisoft Connect. If the `uplay://` URI cannot be opened on your system, the script continues running and waits for you to launch the game manually.
 
 You need to run the optimizer each time you launch the game, because Windows process affinity and priority are reset when the game closes.
 
